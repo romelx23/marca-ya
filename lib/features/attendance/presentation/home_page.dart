@@ -81,8 +81,130 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
+  /// Pide confirmación antes de una acción. Devuelve true si el usuario acepta.
+  Future<bool> _confirm({
+    required IconData icon,
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final p = context.palette;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: Theme.of(ctx).colorScheme.surface,
+            border: Border.all(color: p.border),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.indigo.withValues(alpha: .25),
+                blurRadius: 40,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF8B84FF), Color(0xFF4EE3B5)],
+                  ),
+                ),
+                child: Icon(icon, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: p.textMuted, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      key: const Key('confirm-cancel'),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: p.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('Cancelar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      key: const Key('confirm-ok'),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.indigo,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(confirmLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return ok ?? false;
+  }
+
+  Future<void> _logout() async {
+    final ok = await _confirm(
+      icon: Icons.logout_rounded,
+      title: '¿Cerrar sesión?',
+      message: 'Tendrás que volver a ingresar con tu correo y clave.',
+      confirmLabel: 'Cerrar sesión',
+    );
+    if (ok) await ref.read(authControllerProvider.notifier).logout();
+  }
+
   Future<void> _mark() async {
     if (_busy) return;
+    final day = ref.read(attendanceControllerProvider).valueOrNull;
+    if (day == null) return;
+    final out = day.checkedIn;
+    final worked = _short(day.workedAt(DateTime.now()));
+    final ok = await _confirm(
+      icon: out ? Icons.logout_rounded : Icons.login_rounded,
+      title: out ? '¿Marcar tu salida?' : '¿Marcar tu entrada?',
+      message: out
+          ? 'Llevas $worked trabajadas hoy. Se registrará con la hora del servidor y tu ubicación.'
+          : 'Se registrará con la hora del servidor y tu ubicación actual.',
+      confirmLabel: out ? 'Marcar salida' : 'Marcar entrada',
+    );
+    if (!ok || !mounted) return;
     setState(() => _busy = true);
     final sweep = _ring.forward(from: 0);
     final error = await ref.read(attendanceControllerProvider.notifier).mark();
@@ -145,9 +267,7 @@ class _HomePageState extends ConsumerState<HomePage>
                             IconButton(
                               tooltip: 'Cerrar sesión',
                               icon: Icon(Icons.logout, color: p.textMuted),
-                              onPressed: () => ref
-                                  .read(authControllerProvider.notifier)
-                                  .logout(),
+                              onPressed: _logout,
                             ),
                           ],
                         )
@@ -195,6 +315,8 @@ class _HomePageState extends ConsumerState<HomePage>
         ? const [Color(0xFF7CF5D2), Color(0xFF3FD9AB)]
         : const [Color(0xFF8B84FF), Color(0xFF5B52F0)];
     final glow = day.checkedIn ? AppColors.mint : AppColors.indigo;
+    // Texto oscuro sobre el menta, blanco sobre el índigo.
+    final onButton = day.checkedIn ? const Color(0xFF06231B) : Colors.white;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -230,12 +352,54 @@ class _HomePageState extends ConsumerState<HomePage>
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    day.checkedIn ? 'Marcar salida' : 'Marcar entrada',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF06231B),
+                  child: Container(
+                    width: 190,
+                    height: 190,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .35),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: onButton.withValues(alpha: .16),
+                          ),
+                          child: Icon(
+                            day.checkedIn
+                                ? Icons.logout_rounded
+                                : Icons.login_rounded,
+                            size: 28,
+                            color: onButton,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          day.checkedIn ? 'Marcar salida' : 'Marcar entrada',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: onButton,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          day.checkedIn
+                              ? 'Termina tu jornada'
+                              : 'Empieza tu jornada',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: onButton.withValues(alpha: .75),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -64,6 +64,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         scrolledUnderElevation: 0,
         actions: const [ThemeToggleButton(), SizedBox(width: 8)],
       ),

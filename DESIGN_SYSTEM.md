@@ -23,6 +23,10 @@ La app Flutter y el panel Vue comparten estos tokens. Si cambias uno, cámbialo 
 - Tipografía: Manrope en la app, Geist en el panel (pendiente unificar).
 - Movimiento: duraciones 200 / 450 / 900 ms con `easeOutCubic` (`Motion` en Flutter).
 
+## Botón de marcar y confirmaciones
+- El botón central lleva ícono (entrada: `login`, salida: `logout`), título y subtítulo ("Empieza tu jornada" / "Termina tu jornada"), un aro interior y resplandor. Texto blanco sobre el índigo y oscuro sobre el menta, para mantener el contraste.
+- Toda acción de la app pide confirmación con un diálogo (ícono en degradado, título, explicación, Cancelar / acción): marcar entrada, marcar salida y cerrar sesión. El texto dice qué se registra (hora del servidor y ubicación) y, en la salida, las horas trabajadas.
+
 ## Selección de tema
 - Flutter: `ThemeMode.system` por defecto; el botón de tema alterna (no se guarda entre sesiones todavía).
 - Panel: se guarda en `localStorage` (`marcaya.theme`); sin valor usa el del sistema.
