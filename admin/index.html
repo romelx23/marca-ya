@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <script>
+      // Aplica el tema antes de pintar para evitar un destello.
+      (function () {
+        var t = localStorage.getItem('marcaya.theme');
+        if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.classList.toggle('dark', t === 'dark');
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MarcaYa · RRHH</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
