@@ -5,8 +5,10 @@ import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { Employee } from './employees/employee.entity.js';
 import { EmployeesModule } from './employees/employees.module.js';
+import { DeviceToken } from './notifications/device-token.entity.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
-const entities = [Employee, AttendanceEvent];
+const entities = [Employee, AttendanceEvent, DeviceToken];
 
 // Postgres si hay DB_HOST; si no, sql.js (sin instalación) para desarrollo y tests.
 const database: TypeOrmModuleOptions = process.env.DB_HOST
@@ -23,6 +25,6 @@ const database: TypeOrmModuleOptions = process.env.DB_HOST
   : { type: 'sqljs', entities, synchronize: true };
 
 @Module({
-  imports: [TypeOrmModule.forRoot(database), EmployeesModule, AuthModule, AttendanceModule],
+  imports: [TypeOrmModule.forRoot(database), EmployeesModule, AuthModule, AttendanceModule, NotificationsModule],
 })
 export class AppModule {}

@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../notifications/application/push_registrar.dart';
+import '../../notifications/data/push_service.dart';
 import '../application/attendance_controller.dart';
 import '../data/attendance_repository.dart';
 
@@ -62,8 +64,31 @@ class _HomePageState extends ConsumerState<HomePage>
   Timer? _tick;
   bool _busy = false;
 
+  StreamSubscription<PushNotice>? _noticeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Registra este dispositivo para recibir notificaciones y muestra las que llegan con la app abierta.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(pushRegistrarProvider).register());
+      _noticeSub = ref.read(pushServiceProvider).foreground.listen((n) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(n.body.isEmpty ? n.title : '${n.title}: ${n.body}'),
+            ),
+          );
+      });
+    });
+  }
+
   @override
   void dispose() {
+    _noticeSub?.cancel();
     _tick?.cancel();
     _ring.dispose();
     super.dispose();
@@ -187,7 +212,10 @@ class _HomePageState extends ConsumerState<HomePage>
       message: 'Tendrás que volver a ingresar con tu correo y clave.',
       confirmLabel: 'Cerrar sesión',
     );
-    if (ok) await ref.read(authControllerProvider.notifier).logout();
+    if (!ok) return;
+    // Primero se quita el dispositivo del empleado (aún hay token de sesión) y luego se cierra la sesión.
+    await ref.read(pushRegistrarProvider).unregister();
+    await ref.read(authControllerProvider.notifier).logout();
   }
 
   Future<void> _mark() async {

@@ -6,6 +6,8 @@ import 'package:marca_ya/features/attendance/application/attendance_controller.d
 import 'package:marca_ya/features/attendance/data/attendance_repository.dart';
 import 'package:marca_ya/features/attendance/data/location_service.dart';
 import 'package:marca_ya/features/auth/application/auth_controller.dart';
+import 'package:marca_ya/features/notifications/application/push_registrar.dart';
+import 'package:marca_ya/features/notifications/data/push_service.dart';
 import 'package:marca_ya/features/auth/data/auth_repository.dart';
 import 'package:marca_ya/main.dart';
 
@@ -78,6 +80,7 @@ Future<void> pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        pushServiceProvider.overrideWithValue(NoPushService()),
         locationServiceProvider.overrideWithValue(
           location ?? FakeLocationService(),
         ),

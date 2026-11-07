@@ -5,6 +5,17 @@ import type { App } from 'supertest/types';
 
 const ADMIN = { email: 'admin@test.local', password: 'clave-de-prueba-1' };
 
+/** Transporte de push falso: registra los envíos y marca como inválido el token que contenga "muerto". */
+const fakePush = {
+  enabled: true,
+  sent: [] as { tokens: string[]; title: string }[],
+  async send(tokens: string[], message: { title: string; body: string }) {
+    fakePush.sent.push({ tokens, title: message.title });
+    const invalidTokens = tokens.filter((t) => t.includes('muerto'));
+    return { sent: tokens.length - invalidTokens.length, failed: invalidTokens.length, invalidTokens };
+  },
+};
+
 describe('Auth + empleados (e2e)', () => {
   let app: INestApplication<App>;
 
@@ -12,7 +23,11 @@ describe('Auth + empleados (e2e)', () => {
     process.env.ADMIN_EMAIL = ADMIN.email;
     process.env.ADMIN_PASSWORD = ADMIN.password;
     const { AppModule } = await import('../src/app.module.js');
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const { PUSH_TRANSPORT } = await import('../src/notifications/push.transport.js');
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(PUSH_TRANSPORT)
+      .useValue(fakePush)
+      .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
     await app.init();
@@ -139,6 +154,45 @@ describe('Auth + empleados (e2e)', () => {
       delete process.env.OFFICE_LNG;
       delete process.env.OFFICE_RADIUS_M;
     }
+  });
+
+  it('notificaciones: registra tokens, envía a los dispositivos y limpia los inválidos', async () => {
+    const http = () => request(app.getHttpServer());
+    const admin = await login(ADMIN.email, ADMIN.password).expect(200);
+    const adminAuth = `Bearer ${admin.body.accessToken}`;
+    const created = await http()
+      .post('/employees')
+      .set('Authorization', adminAuth)
+      .send({ email: 'noa@test.local', password: 'clave-noa-123456', fullName: 'Noa Vega' })
+      .expect(201);
+    const noa = await login('noa@test.local', 'clave-noa-123456').expect(200);
+    const noaAuth = `Bearer ${noa.body.accessToken}`;
+    const vivo = 'token-vivo-aaaaaaaaaaaaaaaaaaaa';
+    const muerto = 'token-muerto-bbbbbbbbbbbbbbbbbbb';
+
+    await http().post('/devices').send({ token: vivo, platform: 'android' }).expect(401);
+    await http().post('/devices').set('Authorization', noaAuth).send({ token: 'corto', platform: 'android' }).expect(400);
+    await http().post('/devices').set('Authorization', noaAuth).send({ token: vivo, platform: 'android' }).expect(204);
+    await http().post('/devices').set('Authorization', noaAuth).send({ token: vivo, platform: 'android' }).expect(204);
+    await http().post('/devices').set('Authorization', noaAuth).send({ token: muerto, platform: 'android' }).expect(204);
+
+    const test = await http().post('/notifications/test').set('Authorization', noaAuth).expect(201);
+    expect(test.body).toEqual({ devices: 2, sent: 1, failed: 1 });
+
+    // El token inválido se borró: la segunda vez solo queda un dispositivo.
+    const again = await http().post('/notifications/test').set('Authorization', noaAuth).expect(201);
+    expect(again.body).toEqual({ devices: 1, sent: 1, failed: 0 });
+
+    // Solo RRHH puede enviar a otro empleado.
+    const payload = { employeeId: created.body.id, title: 'Aviso', body: 'No olvides marcar tu salida' };
+    await http().post('/notifications/send').set('Authorization', noaAuth).send(payload).expect(403);
+    const sent = await http().post('/notifications/send').set('Authorization', adminAuth).send(payload).expect(201);
+    expect(sent.body.sent).toBe(1);
+    expect(fakePush.sent.at(-1)?.title).toBe('Aviso');
+
+    await http().delete(`/devices/${vivo}`).set('Authorization', noaAuth).expect(204);
+    const none = await http().post('/notifications/test').set('Authorization', noaAuth).expect(201);
+    expect(none.body).toEqual({ devices: 0, sent: 0, failed: 0 });
   });
 
   it('dos marcaciones simultáneas del mismo empleado no se duplican', async () => {

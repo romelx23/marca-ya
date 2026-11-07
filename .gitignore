@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Config de Firebase (no se versiona)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+*firebase-adminsdk*.json
+backend/.firebase-key.json

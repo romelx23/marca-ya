@@ -121,6 +121,7 @@ docs/                    documentación y capturas
 ## Documentación
 
 - [docs/API.md](docs/API.md): endpoints, roles y errores.
+- [docs/FCM.md](docs/FCM.md): guía paso a paso (con capturas) para configurar las notificaciones push con Firebase.
 - [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md): tokens de color, degradados y temas compartidos.
 
 ## Pendiente

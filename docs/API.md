@@ -65,6 +65,19 @@ Marcaciones propias en un rango de días locales. Sin parámetros, devuelve hoy.
 
 Marcaciones de todos o de un empleado, con `employeeName`. El rango máximo es de 62 días; fechas inválidas o rango invertido responden `400`.
 
+## Dispositivos y notificaciones push
+
+Requieren la configuración de Firebase descrita en [FCM.md](FCM.md). Sin credenciales, los envíos responden `503`.
+
+| Método y ruta | Rol | Descripción |
+|---|---|---|
+| `POST /devices` | cualquiera | Registra el token FCM del dispositivo: `{ "token": "<token>", "platform": "android" }`. Responde `204`. Si el token ya existía (aunque fuera de otro empleado) se reasigna al actual |
+| `DELETE /devices/:token` | cualquiera | Quita el dispositivo del empleado. `204` |
+| `POST /notifications/test` | cualquiera | Envía una notificación de prueba a los dispositivos propios. Responde `{ "devices", "sent", "failed" }` |
+| `POST /notifications/send` | `hr`, `admin` | `{ "employeeId", "title", "body" }`: envía a todos los dispositivos de un empleado. Otros roles: `403` |
+
+Los tokens que FCM rechaza como inválidos se eliminan automáticamente tras el envío.
+
 ## Reglas
 
 - **Días en hora de Lima:** los límites de cada día usan `APP_TZ_OFFSET_MINUTES` (por defecto `-300`).
