@@ -4,6 +4,13 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>MarcaYa usa tu ubicación para confirmar que marcas dentro de la oficina.</string>
+	<!-- Desarrollo: permite hablar con la API local (HTTP) desde el simulador o un teléfono en la red.
+	     En producción la API debe usar HTTPS y esta excepción se quita. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -17,7 +24,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>marca_ya</string>
+	<string>Marca Ya</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

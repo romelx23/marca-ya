@@ -98,7 +98,10 @@ Future<void> pumpFor(
   Duration d = const Duration(milliseconds: 1500),
 ]) async {
   await tester.pump();
-  await tester.pump(d);
+  // Avanza en pasos: las continuaciones con `await` (p. ej. la animación del anillo) necesitan frames propios.
+  for (var t = Duration.zero; t < d; t += const Duration(milliseconds: 100)) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 /// Responde al diálogo de confirmación (acepta o cancela).
@@ -161,7 +164,9 @@ void main() {
     expect(find.text('Hola, Ana'), findsOneWidget);
     expect(find.text('Marcar entrada'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Cerrar sesión'));
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cerrar sesión'));
     await tester.pumpAndSettle();
     expect(find.text('¿Cerrar sesión?'), findsOneWidget);
     await tester.tap(find.byKey(const Key('confirm-ok')));
@@ -290,5 +295,70 @@ void main() {
     await tester.tap(find.text('Reintentar'));
     await tester.pumpAndSettle();
     expect(find.text('Marcar entrada'), findsOneWidget);
+  });
+
+  testWidgets('el botón de marcar se anuncia como botón con su acción', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpApp(tester, await loggedIn(), FakeAttendanceRepository());
+
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Marcar entrada')),
+      matchesSemantics(
+        label: 'Marcar entrada',
+        isButton: true,
+        hasTapAction: true,
+        hasEnabledState: true,
+        isEnabled: true,
+      ),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('marcar con éxito confirma la hora en un aviso', (tester) async {
+    final server = FakeAttendanceRepository();
+    await pumpApp(tester, await loggedIn(), server);
+
+    await tester.tap(find.text('Marcar entrada'));
+    await answerDialog(tester);
+    await pumpFor(tester);
+
+    expect(find.textContaining('Entrada registrada a las'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('no desborda en un teléfono angosto con texto ampliado', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final server = FakeAttendanceRepository()
+      ..checkedIn = true
+      ..worked = 30725; // 08:32:05
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(await loggedIn()),
+          attendanceRepositoryProvider.overrideWithValue(server),
+        ],
+        child: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 640),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: const MarcaYaApp(),
+        ),
+      ),
+    );
+    await pumpFor(tester);
+
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+    // Drena los temporizadores de animación que quedan al desmontar.
+    await tester.pump(const Duration(milliseconds: 500));
   });
 }

@@ -27,6 +27,11 @@ La app Flutter y el panel Vue comparten estos tokens. Si cambias uno, cámbialo 
 - El botón central lleva ícono (entrada: `login`, salida: `logout`), título y subtítulo ("Empieza tu jornada" / "Termina tu jornada"), un aro interior y resplandor. Texto blanco sobre el índigo y oscuro sobre el menta, para mantener el contraste.
 - Toda acción de la app pide confirmación con un diálogo (ícono en degradado, título, explicación, Cancelar / acción): marcar entrada, marcar salida y cerrar sesión. El texto dice qué se registra (hora del servidor y ubicación) y, en la salida, las horas trabajadas.
 
+## Errores y acciones del header
+- Error (formularios, marcación, carga): `AppColors.error` (`#FF6B6B`), igual en ambos temas. Los avisos de éxito van en menta con texto `AppColors.onMint`.
+- Gradientes de marca en `AppColors`: `brandGradient` (logo, avatar), `indigoGradient` (botones), `mintGradient` (botón de marcar en turno).
+- En Home el header solo muestra el saludo y el avatar; cambiar tema y cerrar sesión están en el menú del avatar.
+
 ## Selección de tema
-- Flutter: `ThemeMode.system` por defecto; el botón de tema alterna (no se guarda entre sesiones todavía).
+- Flutter: `ThemeMode.system` por defecto; se cambia desde el menú del avatar (no se guarda entre sesiones todavía).
 - Panel: se guarda en `localStorage` (`marcaya.theme`); sin valor usa el del sistema.

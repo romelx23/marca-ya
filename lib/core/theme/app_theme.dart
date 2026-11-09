@@ -6,6 +6,28 @@ import 'package:google_fonts/google_fonts.dart';
 class AppColors {
   static const indigo = Color(0xFF6C63FF);
   static const mint = Color(0xFF4EE3B5);
+
+  /// Error de formulario o de marcación (no cambia con el tema).
+  static const error = Color(0xFFFF6B6B);
+
+  /// Texto e íconos sobre el menta, para mantener el contraste.
+  static const onMint = Color(0xFF06231B);
+
+  static const brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF8B84FF), mint],
+  );
+  static const indigoGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF8B84FF), Color(0xFF5B52F0)],
+  );
+  static const mintGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF7CF5D2), Color(0xFF3FD9AB)],
+  );
 }
 
 class Motion {

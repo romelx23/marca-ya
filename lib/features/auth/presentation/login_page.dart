@@ -92,11 +92,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                 height: 72,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(22),
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [AppColors.indigo, AppColors.mint],
-                                  ),
+                                  gradient: AppColors.brandGradient,
                                   boxShadow: [
                                     BoxShadow(
                                       color: AppColors.indigo.withValues(
@@ -110,7 +106,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                 child: const Icon(
                                   Icons.fingerprint,
                                   size: 40,
-                                  color: Colors.black87,
+                                  color: AppColors.onMint,
                                 ),
                               ),
                             ).animate().scale(
@@ -198,11 +194,14 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                   ? const SizedBox(width: double.infinity)
                                   : Padding(
                                       padding: const EdgeInsets.only(top: 12),
-                                      child: Text(
-                                        _error!,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Color(0xFFFF6B6B),
+                                      child: Semantics(
+                                        liveRegion: true,
+                                        child: Text(
+                                          _error!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: AppColors.error,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -211,14 +210,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                             DecoratedBox(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF8B84FF),
-                                    Color(0xFF5B52F0),
-                                  ],
-                                ),
+                                gradient: AppColors.indigoGradient,
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.indigo.withValues(

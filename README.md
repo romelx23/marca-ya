@@ -89,7 +89,12 @@ flutter run -d chrome --dart-define=API_URL=http://localhost:3001
 
 # Teléfono físico: usa la IP de tu PC en la red local
 flutter run --dart-define=API_URL=http://<IP-de-tu-PC>:3001
+
+# iOS (simulador de Xcode): localhost apunta al Mac
+flutter run -d "iPhone 17 Pro" --dart-define=API_URL=http://localhost:3001
 ```
+
+iOS necesita Xcode con el simulador instalado. La excepción de ATS para HTTP local está en `ios/Runner/Info.plist` (`NSAllowsLocalNetworking`, solo para desarrollo: en producción la API debe usar HTTPS).
 
 Para probar la geocerca en el emulador: define `OFFICE_LAT`/`OFFICE_LNG` en el backend y mueve el GPS del emulador con `adb emu geo fix <longitud> <latitud>`.
 

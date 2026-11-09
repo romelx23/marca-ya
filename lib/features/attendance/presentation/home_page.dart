@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -59,26 +60,12 @@ class _HomePageState extends ConsumerState<HomePage>
     vsync: this,
     duration: Motion.slow,
   );
-  Timer? _tick;
   bool _busy = false;
 
   @override
   void dispose() {
-    _tick?.cancel();
     _ring.dispose();
     super.dispose();
-  }
-
-  /// El reloj solo corre mientras hay una entrada abierta.
-  void _syncTicker(bool running) {
-    if (running && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    } else if (!running) {
-      _tick?.cancel();
-      _tick = null;
-    }
   }
 
   /// Pide confirmación antes de una acción. Devuelve true si el usuario acepta.
@@ -115,11 +102,7 @@ class _HomePageState extends ConsumerState<HomePage>
                 height: 56,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF8B84FF), Color(0xFF4EE3B5)],
-                  ),
+                  gradient: AppColors.brandGradient,
                 ),
                 child: Icon(icon, color: Colors.white),
               ),
@@ -205,23 +188,36 @@ class _HomePageState extends ConsumerState<HomePage>
       confirmLabel: out ? 'Marcar salida' : 'Marcar entrada',
     );
     if (!ok || !mounted) return;
+    HapticFeedback.mediumImpact();
     setState(() => _busy = true);
     final sweep = _ring.forward(from: 0);
     final error = await ref.read(attendanceControllerProvider.notifier).mark();
     await sweep;
     if (!mounted) return;
     setState(() => _busy = false);
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
     if (error != null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error)));
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.mint,
+          content: Text(
+            '${out ? 'Salida' : 'Entrada'} registrada a las ${_hm(DateTime.now())}',
+            style: const TextStyle(
+              color: AppColors.onMint,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final day = ref.watch(attendanceControllerProvider);
-    _syncTicker(day.valueOrNull?.checkedIn ?? false);
     final employee = ref.watch(authControllerProvider).valueOrNull?.employee;
     final name = employee?.firstName ?? '';
     final fullName = employee?.fullName ?? '';
@@ -255,6 +251,7 @@ class _HomePageState extends ConsumerState<HomePage>
                             Expanded(
                               child: Text(
                                 'Hola, $name',
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 30,
@@ -262,13 +259,7 @@ class _HomePageState extends ConsumerState<HomePage>
                                 ),
                               ),
                             ),
-                            const ThemeToggleButton(),
-                            _Avatar(fullName),
-                            IconButton(
-                              tooltip: 'Cerrar sesión',
-                              icon: Icon(Icons.logout, color: p.textMuted),
-                              onPressed: _logout,
-                            ),
+                            _AccountMenu(fullName: fullName, onLogout: _logout),
                           ],
                         )
                         .animate()
@@ -307,99 +298,115 @@ class _HomePageState extends ConsumerState<HomePage>
     final worked = day.workedAt(DateTime.now());
     final dayProgress = (worked / _workday.inSeconds).clamp(0.0, 1.0);
     final firstIn = day.firstIn;
-    final remaining = _workday.inSeconds - worked;
-    final clock = _clock(worked);
-    final base = clock.substring(0, clock.length - 2); // "HH:MM:"
-    final seconds = clock.substring(clock.length - 2);
-    final colors = day.checkedIn
-        ? const [Color(0xFF7CF5D2), Color(0xFF3FD9AB)]
-        : const [Color(0xFF8B84FF), Color(0xFF5B52F0)];
     final glow = day.checkedIn ? AppColors.mint : AppColors.indigo;
     // Texto oscuro sobre el menta, blanco sobre el índigo.
-    final onButton = day.checkedIn ? const Color(0xFF06231B) : Colors.white;
+    final onButton = day.checkedIn ? AppColors.onMint : Colors.white;
+    // Diámetro del botón: 260 px, o menos en teléfonos angostos.
+    final side = (MediaQuery.sizeOf(context).width - 48).clamp(200.0, 260.0);
+    final disc = side * 210 / 260;
+    final core = side * 190 / 260;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        GestureDetector(
+        Semantics(
+          button: true,
+          enabled: !_busy,
+          label: day.checkedIn ? 'Marcar salida' : 'Marcar entrada',
           onTap: _busy ? null : _mark,
-          child: AnimatedBuilder(
-            animation: _ring,
-            builder: (context, child) => CustomPaint(
-              painter: _RingPainter(_busy ? _ring.value : dayProgress, p.track),
-              child: Container(
-                width: 260,
-                height: 260,
-                alignment: Alignment.center,
-                child: AnimatedContainer(
-                  duration: Motion.medium,
-                  curve: Motion.curve,
-                  width: 210,
-                  height: 210,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: colors,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: glow.withValues(alpha: .35),
-                        blurRadius: 40,
-                        spreadRadius: 2,
-                      ),
-                    ],
+          excludeSemantics: true,
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: _busy ? null : _mark,
+              child: AnimatedBuilder(
+                animation: _ring,
+                builder: (context, child) => CustomPaint(
+                  painter: _RingPainter(
+                    _busy ? _ring.value : dayProgress,
+                    p.track,
                   ),
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 190,
-                    height: 190,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .35),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
+                  child: SizedBox.square(
+                    dimension: side,
+                    child: Center(
+                      child: AnimatedContainer(
+                        duration: Motion.medium,
+                        curve: Motion.curve,
+                        width: disc,
+                        height: disc,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: day.checkedIn
+                              ? AppColors.mintGradient
+                              : AppColors.indigoGradient,
+                          boxShadow: [
+                            BoxShadow(
+                              color: glow.withValues(alpha: .35),
+                              blurRadius: 40,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: core,
+                          height: core,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: onButton.withValues(alpha: .16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .35),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Icon(
-                            day.checkedIn
-                                ? Icons.logout_rounded
-                                : Icons.login_rounded,
-                            size: 28,
-                            color: onButton,
+                          // Con texto ampliado el contenido se reduce para caber en el disco.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: onButton.withValues(alpha: .16),
+                                  ),
+                                  child: Icon(
+                                    day.checkedIn
+                                        ? Icons.logout_rounded
+                                        : Icons.login_rounded,
+                                    size: 28,
+                                    color: onButton,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  day.checkedIn
+                                      ? 'Marcar salida'
+                                      : 'Marcar entrada',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: onButton,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  day.checkedIn
+                                      ? 'Termina tu jornada'
+                                      : 'Empieza tu jornada',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: onButton.withValues(alpha: .75),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          day.checkedIn ? 'Marcar salida' : 'Marcar entrada',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: onButton,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          day.checkedIn
-                              ? 'Termina tu jornada'
-                              : 'Empieza tu jornada',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: onButton.withValues(alpha: .75),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -417,32 +424,7 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
         ),
         const SizedBox(height: 6),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: base),
-              TextSpan(
-                text: seconds,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-            ],
-          ),
-          key: const Key('worked-clock'),
-          style: const TextStyle(
-            fontSize: 40,
-            fontWeight: FontWeight.w800,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          remaining > 0
-              ? 'Faltan ${_short(remaining)} de ${_workday.inHours}h'
-              : 'Jornada completa',
-          style: TextStyle(color: p.textMuted),
-        ),
+        _WorkedTime(day: day),
         const SizedBox(height: 24),
         Row(
           children: [
@@ -471,6 +453,146 @@ class _HomePageState extends ConsumerState<HomePage>
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Horas trabajadas en vivo. Es el único widget que se reconstruye cada segundo
+/// mientras hay una entrada abierta; el resto de la pantalla no se toca.
+class _WorkedTime extends StatefulWidget {
+  const _WorkedTime({required this.day});
+  final AttendanceDay day;
+
+  @override
+  State<_WorkedTime> createState() => _WorkedTimeState();
+}
+
+class _WorkedTimeState extends State<_WorkedTime> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(_WorkedTime old) {
+    super.didUpdateWidget(old);
+    _syncTicker();
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  /// El reloj solo corre mientras hay una entrada abierta.
+  void _syncTicker() {
+    if (widget.day.checkedIn) {
+      _tick ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => setState(() {}),
+      );
+    } else {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final worked = widget.day.workedAt(DateTime.now());
+    final remaining = _workday.inSeconds - worked;
+    final clock = _clock(worked);
+    final base = clock.substring(0, clock.length - 2); // "HH:MM:"
+    final seconds = clock.substring(clock.length - 2);
+
+    return Column(
+      children: [
+        // Con texto ampliado el reloj se achica en vez de desbordar.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: base),
+                TextSpan(
+                  text: seconds,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+            key: const Key('worked-clock'),
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.w800,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          remaining > 0
+              ? 'Faltan ${_short(remaining)} de ${_workday.inHours}h'
+              : 'Jornada completa',
+          style: TextStyle(color: p.textMuted),
+        ),
+      ],
+    );
+  }
+}
+
+enum _AccountAction { theme, logout }
+
+/// Menú de cuenta: cambiar tema y cerrar sesión. Reemplaza los íconos sueltos del header.
+class _AccountMenu extends ConsumerWidget {
+  const _AccountMenu({required this.fullName, required this.onLogout});
+  final String fullName;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final p = context.palette;
+    return PopupMenuButton<_AccountAction>(
+      tooltip: 'Cuenta',
+      offset: const Offset(0, 52),
+      onSelected: (action) {
+        switch (action) {
+          case _AccountAction.theme:
+            ref.read(themeModeProvider.notifier).state = dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+          case _AccountAction.logout:
+            onLogout();
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _AccountAction.theme,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            ),
+            title: Text(dark ? 'Modo claro' : 'Modo oscuro'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _AccountAction.logout,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.logout_rounded, color: p.textMuted),
+            title: const Text('Cerrar sesión'),
+          ),
+        ),
+      ],
+      child: _Avatar(fullName),
     );
   }
 }
@@ -539,11 +661,7 @@ class _Avatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF8B84FF), Color(0xFF4EE3B5)],
-        ),
+        gradient: AppColors.brandGradient,
         border: Border.all(
           color: Colors.white.withValues(alpha: .15),
           width: 2,
@@ -570,10 +688,13 @@ class _LoadError extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFFFF6B6B)),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.error),
+          ),
         ),
         const SizedBox(height: 12),
         OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
