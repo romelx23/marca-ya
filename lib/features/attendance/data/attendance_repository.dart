@@ -39,8 +39,28 @@ class AttendanceDay {
   }
 }
 
+/// Una marcación del historial, con la hora ya en la zona local del dispositivo.
+class AttendanceRecord {
+  const AttendanceRecord({required this.type, required this.occurredAt});
+
+  factory AttendanceRecord.fromJson(Map<String, dynamic> j) => AttendanceRecord(
+    type: j['type'] as String,
+    occurredAt: DateTime.parse(j['occurredAt'] as String).toLocal(),
+  );
+
+  /// 'in' o 'out'.
+  final String type;
+  final DateTime occurredAt;
+}
+
 abstract class AttendanceRepository {
   Future<AttendanceDay> today();
+
+  /// Marcaciones entre [from] y [to], ambos incluidos (días locales).
+  Future<List<AttendanceRecord>> history({
+    required DateTime from,
+    required DateTime to,
+  });
 
   /// [type] es 'in' o 'out'. Lanza [ApiException] (409 si la secuencia no corresponde).
   Future<void> mark(String type, {Coords? coords});
@@ -57,6 +77,26 @@ class ApiAttendanceRepository implements AttendanceRepository {
     final res = await _api.get('/attendance/today', token: _token());
     return AttendanceDay.fromJson(res, DateTime.now());
   }
+
+  @override
+  Future<List<AttendanceRecord>> history({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final res = await _api.getList(
+      '/attendance/me?from=${_ymd(from)}&to=${_ymd(to)}',
+      token: _token(),
+    );
+    return res
+        .cast<Map<String, dynamic>>()
+        .map(AttendanceRecord.fromJson)
+        .toList();
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   @override
   Future<void> mark(String type, {Coords? coords}) async {

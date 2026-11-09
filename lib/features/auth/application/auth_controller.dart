@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
@@ -30,6 +31,10 @@ class AuthController extends AsyncNotifier<Session?> {
       return null;
     } on ApiException catch (e) {
       return e.message;
+    } catch (e) {
+      // Errores no previstos (p. ej. al guardar el token): no deben dejar el login cargando.
+      debugPrint('Login falló: $e');
+      return 'No se pudo iniciar sesión. Intenta de nuevo.';
     }
   }
 

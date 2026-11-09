@@ -36,26 +36,38 @@ class ApiClient {
     String path,
     Map<String, dynamic> body, {
     String? token,
-  }) => _send(
-    () => _http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers(token),
-      body: jsonEncode(body),
-    ),
-  );
+  }) async =>
+      await _send(
+            () => _http.post(
+              Uri.parse('$baseUrl$path'),
+              headers: _headers(token),
+              body: jsonEncode(body),
+            ),
+          )
+          as Map<String, dynamic>;
 
-  Future<Map<String, dynamic>> get(String path, {String? token}) => _send(
-    () => _http.get(Uri.parse('$baseUrl$path'), headers: _headers(token)),
-  );
+  Future<Map<String, dynamic>> get(String path, {String? token}) async =>
+      await _send(
+            () =>
+                _http.get(Uri.parse('$baseUrl$path'), headers: _headers(token)),
+          )
+          as Map<String, dynamic>;
+
+  /// Para endpoints que devuelven una lista JSON.
+  Future<List<dynamic>> getList(String path, {String? token}) async =>
+      await _send(
+            () =>
+                _http.get(Uri.parse('$baseUrl$path'), headers: _headers(token)),
+          )
+          as List<dynamic>;
 
   Map<String, String> _headers(String? token) => {
     'Content-Type': 'application/json',
     if (token != null) 'Authorization': 'Bearer $token',
   };
 
-  Future<Map<String, dynamic>> _send(
-    Future<http.Response> Function() call,
-  ) async {
+  /// Devuelve el JSON decodificado (mapa o lista), o lanza [ApiException].
+  Future<Object?> _send(Future<http.Response> Function() call) async {
     final http.Response res;
     try {
       res = await call().timeout(const Duration(seconds: 15));
@@ -66,7 +78,7 @@ class ApiClient {
         ? <String, dynamic>{}
         : jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      return decoded as Map<String, dynamic>;
+      return decoded;
     }
     var message = 'Error ${res.statusCode}';
     if (decoded is Map && decoded['message'] != null) {

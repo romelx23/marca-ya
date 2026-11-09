@@ -8,6 +8,7 @@ class Employee {
     required this.email,
     required this.fullName,
     required this.role,
+    this.documentId,
   });
 
   factory Employee.fromJson(Map<String, dynamic> j) => Employee(
@@ -15,6 +16,7 @@ class Employee {
     email: j['email'] as String,
     fullName: j['fullName'] as String,
     role: j['role'] as String,
+    documentId: j['documentId'] as String?,
   );
 
   final String id;
@@ -22,8 +24,18 @@ class Employee {
   final String fullName;
   final String role;
 
+  /// Documento de identidad, o null si RRHH no lo registró.
+  final String? documentId;
+
   String get firstName => fullName.split(' ').first;
   bool get isHr => role == 'hr' || role == 'admin';
+
+  String get roleLabel => switch (role) {
+    'admin' => 'Administrador',
+    'hr' => 'Recursos Humanos',
+    'manager' => 'Jefatura',
+    _ => 'Empleado',
+  };
 }
 
 class Session {

@@ -5,6 +5,7 @@ import 'package:marca_ya/core/api/api_client.dart';
 import 'package:marca_ya/features/attendance/application/attendance_controller.dart';
 import 'package:marca_ya/features/attendance/data/attendance_repository.dart';
 import 'package:marca_ya/features/attendance/data/location_service.dart';
+import 'package:marca_ya/features/attendance/presentation/format.dart';
 import 'package:marca_ya/features/auth/application/auth_controller.dart';
 import 'package:marca_ya/features/auth/data/auth_repository.dart';
 import 'package:marca_ya/main.dart';
@@ -52,6 +53,15 @@ class FakeAttendanceRepository implements AttendanceRepository {
   }
 
   Coords? lastCoords;
+
+  /// Marcaciones que devuelve el historial.
+  List<AttendanceRecord> records = [];
+
+  @override
+  Future<List<AttendanceRecord>> history({
+    required DateTime from,
+    required DateTime to,
+  }) async => records;
 
   @override
   Future<void> mark(String type, {Coords? coords}) async {
@@ -119,6 +129,14 @@ Future<FakeAuthRepository> loggedIn() async {
   final repo = FakeAuthRepository();
   await repo.login('ana@test.local', 'correcta');
   return repo;
+}
+
+/// Simula un fallo no previsto (no es un ApiException), como el del almacenamiento seguro.
+class BrokenAuthRepository extends FakeAuthRepository {
+  @override
+  Future<Session> login(String email, String password) async {
+    throw StateError('almacenamiento no disponible');
+  }
 }
 
 void main() {
@@ -295,6 +313,90 @@ void main() {
     await tester.tap(find.text('Reintentar'));
     await tester.pumpAndSettle();
     expect(find.text('Marcar entrada'), findsOneWidget);
+  });
+
+  testWidgets('un error no previsto al iniciar sesión muestra mensaje', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(BrokenAuthRepository()),
+        ],
+        child: const MarcaYaApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('email')), 'ana@test.local');
+    await tester.enterText(find.byKey(const Key('password')), 'correcta');
+    await tester.tap(find.byKey(const Key('login-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('No se pudo iniciar sesión. Intenta de nuevo.'),
+      findsOneWidget,
+    );
+    expect(find.text('Ingresar'), findsOneWidget);
+  });
+
+  testWidgets('el historial muestra las horas y el total de cada día', (
+    tester,
+  ) async {
+    final hoy = DateTime.now();
+    final server = FakeAttendanceRepository()
+      ..records = [
+        AttendanceRecord(
+          type: 'in',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 8, 2),
+        ),
+        AttendanceRecord(
+          type: 'out',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 12, 0),
+        ),
+        AttendanceRecord(
+          type: 'in',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 13, 0),
+        ),
+        AttendanceRecord(
+          type: 'out',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 17, 30),
+        ),
+      ];
+    await pumpApp(tester, await loggedIn(), server);
+
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mi historial'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(dayLabel(hoy)), findsOneWidget);
+    expect(find.text('Entrada 08:02  ·  Salida 17:30'), findsOneWidget);
+    expect(find.text('8h 28m'), findsOneWidget);
+  });
+
+  testWidgets('el historial sin marcaciones lo dice', (tester) async {
+    await pumpApp(tester, await loggedIn(), FakeAttendanceRepository());
+
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mi historial'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin marcaciones en los últimos 30 días'), findsOneWidget);
+  });
+
+  testWidgets('el perfil muestra los datos del empleado', (tester) async {
+    await pumpApp(tester, await loggedIn(), FakeAttendanceRepository());
+
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mi perfil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ana Ruiz'), findsWidgets);
+    expect(find.text('ana@test.local'), findsOneWidget);
+    expect(find.text('Sin documento registrado'), findsOneWidget);
+    expect(find.text('Empleado'), findsWidgets);
   });
 
   testWidgets('el botón de marcar se anuncia como botón con su acción', (

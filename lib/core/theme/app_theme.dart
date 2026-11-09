@@ -138,6 +138,14 @@ ThemeData _build(Brightness brightness, AppPalette palette) {
   return base.copyWith(
     scaffoldBackgroundColor: palette.bg,
     colorScheme: scheme,
+    // La barra superior se funde con el fondo del tema, sin sombra al desplazar.
+    appBarTheme: AppBarTheme(
+      backgroundColor: palette.bg,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+      elevation: 0,
+      foregroundColor: isDark ? Colors.white : const Color(0xFF14162A),
+    ),
     textTheme: GoogleFonts.manropeTextTheme(base.textTheme).apply(
       bodyColor: isDark ? Colors.white : const Color(0xFF14162A),
       displayColor: isDark ? Colors.white : const Color(0xFF14162A),

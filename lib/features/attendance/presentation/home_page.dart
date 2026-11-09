@@ -9,39 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/presentation/profile_page.dart';
 import '../application/attendance_controller.dart';
 import '../data/attendance_repository.dart';
+import 'format.dart';
+import 'history_page.dart';
 
 const _workday = Duration(hours: 8);
-const _weekdays = [
-  'lunes',
-  'martes',
-  'miércoles',
-  'jueves',
-  'viernes',
-  'sábado',
-  'domingo',
-];
-const _months = [
-  'enero',
-  'febrero',
-  'marzo',
-  'abril',
-  'mayo',
-  'junio',
-  'julio',
-  'agosto',
-  'septiembre',
-  'octubre',
-  'noviembre',
-  'diciembre',
-];
-
-String _dateLabel(DateTime d) {
-  final w = _weekdays[d.weekday - 1];
-  return '${w[0].toUpperCase()}${w.substring(1)}, ${d.day} de ${_months[d.month - 1]}';
-}
-
 String _clock(int seconds) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(seconds ~/ 3600)}:${two(seconds % 3600 ~/ 60)}:${two(seconds % 60)}';
@@ -178,7 +152,7 @@ class _HomePageState extends ConsumerState<HomePage>
     final day = ref.read(attendanceControllerProvider).valueOrNull;
     if (day == null) return;
     final out = day.checkedIn;
-    final worked = _short(day.workedAt(DateTime.now()));
+    final worked = duration(day.workedAt(DateTime.now()));
     final ok = await _confirm(
       icon: out ? Icons.logout_rounded : Icons.login_rounded,
       title: out ? '¿Marcar tu salida?' : '¿Marcar tu entrada?',
@@ -204,7 +178,7 @@ class _HomePageState extends ConsumerState<HomePage>
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.mint,
           content: Text(
-            '${out ? 'Salida' : 'Entrada'} registrada a las ${_hm(DateTime.now())}',
+            '${out ? 'Salida' : 'Entrada'} registrada a las ${hm(DateTime.now())}',
             style: const TextStyle(
               color: AppColors.onMint,
               fontWeight: FontWeight.w700,
@@ -243,7 +217,7 @@ class _HomePageState extends ConsumerState<HomePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _dateLabel(DateTime.now()),
+                      dayLabel(DateTime.now()),
                       style: TextStyle(color: p.textMuted),
                     ).animate().fadeIn(duration: Motion.medium),
                     Row(
@@ -429,13 +403,13 @@ class _HomePageState extends ConsumerState<HomePage>
         Row(
           children: [
             Expanded(
-              child: _StatCard('Entrada', firstIn == null ? '—' : _hm(firstIn)),
+              child: _StatCard('Entrada', firstIn == null ? '—' : hm(firstIn)),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
                 'Salida est.',
-                firstIn == null ? '—' : _hm(firstIn.add(_workday)),
+                firstIn == null ? '—' : hm(firstIn.add(_workday)),
               ),
             ),
             const SizedBox(width: 10),
@@ -538,7 +512,7 @@ class _WorkedTimeState extends State<_WorkedTime> {
         const SizedBox(height: 4),
         Text(
           remaining > 0
-              ? 'Faltan ${_short(remaining)} de ${_workday.inHours}h'
+              ? 'Faltan ${duration(remaining)} de ${_workday.inHours}h'
               : 'Jornada completa',
           style: TextStyle(color: p.textMuted),
         ),
@@ -547,9 +521,9 @@ class _WorkedTimeState extends State<_WorkedTime> {
   }
 }
 
-enum _AccountAction { theme, logout }
+enum _AccountAction { profile, history, theme, logout }
 
-/// Menú de cuenta: cambiar tema y cerrar sesión. Reemplaza los íconos sueltos del header.
+/// Menú de cuenta: perfil, historial, tema y cerrar sesión.
 class _AccountMenu extends ConsumerWidget {
   const _AccountMenu({required this.fullName, required this.onLogout});
   final String fullName;
@@ -564,6 +538,14 @@ class _AccountMenu extends ConsumerWidget {
       offset: const Offset(0, 52),
       onSelected: (action) {
         switch (action) {
+          case _AccountAction.profile:
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ProfilePage()),
+            );
+          case _AccountAction.history:
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const HistoryPage()),
+            );
           case _AccountAction.theme:
             ref.read(themeModeProvider.notifier).state = dark
                 ? ThemeMode.light
@@ -573,6 +555,22 @@ class _AccountMenu extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _AccountAction.profile,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.person_outline),
+            title: const Text('Mi perfil'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _AccountAction.history,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.history),
+            title: const Text('Mi historial'),
+          ),
+        ),
         PopupMenuItem(
           value: _AccountAction.theme,
           child: ListTile(
@@ -596,12 +594,6 @@ class _AccountMenu extends ConsumerWidget {
     );
   }
 }
-
-String _hm(DateTime d) =>
-    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-String _short(int seconds) =>
-    '${seconds ~/ 3600}h ${(seconds % 3600 ~/ 60).toString().padLeft(2, '0')}m';
 
 class _StatCard extends StatelessWidget {
   const _StatCard(this.label, this.value, {this.valueColor});
