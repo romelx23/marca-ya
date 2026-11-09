@@ -1,4 +1,4 @@
-import type { AttendanceType } from './attendance.entity.js';
+import type { AttendanceType } from './attendance.store.js';
 
 export interface TimedEvent {
   type: AttendanceType;

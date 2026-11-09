@@ -1,9 +1,9 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import type { AttendanceMethod, AttendanceType } from './attendance.store.js';
 
-export type AttendanceType = 'in' | 'out';
-export type AttendanceMethod = 'app' | 'pin' | 'qr' | 'face' | 'fingerprint' | 'manual';
+export type { AttendanceMethod, AttendanceType } from './attendance.store.js';
 
-/** Registro inmutable de una marcación. La hora siempre la pone el servidor. */
+/** Esquema de la tabla de marcaciones para TypeORM. Solo lo usa el adaptador typeorm-attendance.store.ts. */
 @Entity('attendance_events')
 @Index(['employeeId', 'occurredAt'])
 export class AttendanceEvent {

@@ -1,9 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, Repository } from 'typeorm';
 import { EmployeesService } from '../employees/employees.service.js';
-import { AttendanceEvent, AttendanceMethod } from './attendance.entity.js';
 import { distanceMeters, localDayRange, nextType, officeGeofence, parseLocalDate, workedSeconds } from './attendance.logic.js';
+import { ATTENDANCE_STORE, type AttendanceMethod, type AttendanceStore } from './attendance.store.js';
 import type { MarkDto } from './attendance.dto.js';
 
 const MAX_RANGE_DAYS = 62;
@@ -14,7 +12,7 @@ export class AttendanceService {
   private readonly locks = new Map<string, Promise<unknown>>();
 
   constructor(
-    @InjectRepository(AttendanceEvent) private readonly repo: Repository<AttendanceEvent>,
+    @Inject(ATTENDANCE_STORE) private readonly store: AttendanceStore,
     @Inject(EmployeesService) private readonly employees: EmployeesService,
   ) {}
 
@@ -31,10 +29,7 @@ export class AttendanceService {
 
   private eventsOfDay(employeeId: string, now: Date) {
     const { start, end } = localDayRange(now);
-    return this.repo.find({
-      where: { employeeId, occurredAt: Between(start, new Date(end.getTime() - 1)) },
-      order: { occurredAt: 'ASC' },
-    });
+    return this.store.find({ employeeId, from: start, to: end });
   }
 
   async mark(
@@ -64,17 +59,15 @@ export class AttendanceService {
           expected === 'in' ? 'No tienes una entrada abierta: marca entrada primero' : 'Ya marcaste entrada: marca salida',
         );
       }
-      return this.repo.save(
-        this.repo.create({
-          employeeId,
-          type: dto.type,
-          occurredAt: now,
-          method: opts.method ?? 'app',
-          deviceId: opts.deviceId ?? null,
-          latitude: dto.latitude ?? null,
-          longitude: dto.longitude ?? null,
-        }),
-      );
+      return this.store.add({
+        employeeId,
+        type: dto.type,
+        occurredAt: now,
+        method: opts.method ?? 'app',
+        deviceId: opts.deviceId ?? null,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
+      });
     });
   }
 
@@ -100,11 +93,7 @@ export class AttendanceService {
     if ((end.getTime() - start.getTime()) / 86_400_000 > MAX_RANGE_DAYS) {
       throw new BadRequestException(`El rango máximo es de ${MAX_RANGE_DAYS} días`);
     }
-    const where: FindOptionsWhere<AttendanceEvent> = {
-      occurredAt: Between(start, new Date(end.getTime() - 1)),
-      ...(opts.employeeId ? { employeeId: opts.employeeId } : {}),
-    };
-    return this.repo.find({ where, order: { occurredAt: 'ASC' } });
+    return this.store.find({ employeeId: opts.employeeId, from: start, to: end });
   }
 
   /** Para RRHH: eventos con el nombre del empleado. */

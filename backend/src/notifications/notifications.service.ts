@@ -1,13 +1,11 @@
 import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { DevicePlatform, DeviceToken } from './device-token.entity.js';
+import { DEVICE_STORE, type DevicePlatform, type DeviceStore } from './device.store.js';
 import { PUSH_TRANSPORT, type PushMessage, type PushTransport } from './push.transport.js';
 
 @Injectable()
 export class NotificationsService {
   constructor(
-    @InjectRepository(DeviceToken) private readonly devices: Repository<DeviceToken>,
+    @Inject(DEVICE_STORE) private readonly devices: DeviceStore,
     @Inject(PUSH_TRANSPORT) private readonly transport: PushTransport,
   ) {}
 
@@ -17,17 +15,17 @@ export class NotificationsService {
 
   /** Guarda el token del dispositivo. Si ya existía (aunque fuera de otro empleado), lo reasigna. */
   async register(employeeId: string, token: string, platform: DevicePlatform) {
-    const existing = await this.devices.findOne({ where: { token } });
+    const existing = await this.devices.findByToken(token);
     if (existing) {
       existing.employeeId = employeeId;
       existing.platform = platform;
       return this.devices.save(existing);
     }
-    return this.devices.save(this.devices.create({ employeeId, token, platform }));
+    return this.devices.add({ employeeId, token, platform });
   }
 
   async unregister(employeeId: string, token: string) {
-    await this.devices.delete({ employeeId, token });
+    await this.devices.removeByEmployeeAndToken(employeeId, token);
   }
 
   /** Envía una notificación a todos los dispositivos de un empleado y limpia los tokens muertos. */
@@ -35,16 +33,14 @@ export class NotificationsService {
     if (!this.transport.enabled) {
       throw new ServiceUnavailableException('Notificaciones no configuradas en el servidor');
     }
-    const rows = await this.devices.find({ where: { employeeId } });
+    const rows = await this.devices.findByEmployee(employeeId);
     if (rows.length === 0) return { devices: 0, sent: 0, failed: 0 };
 
     const result = await this.transport.send(
       rows.map((r) => r.token),
       message,
     );
-    if (result.invalidTokens.length > 0) {
-      await this.devices.delete(result.invalidTokens.map((token) => ({ token })));
-    }
+    await this.devices.removeTokens(result.invalidTokens);
     return { devices: rows.length, sent: result.sent, failed: result.failed };
   }
 }

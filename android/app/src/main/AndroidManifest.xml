@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- TODO(producción): quitar usesCleartextTraffic cuando el backend use HTTPS. Hoy se permite HTTP para probar en la red local. -->
     <application
+        android:usesCleartextTraffic="true"
         android:label="marca_ya"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

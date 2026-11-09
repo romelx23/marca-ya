@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import type { Role } from '../employees/employee.entity.js';
+import type { Role } from '../employees/employee.store.js';
 
 export interface AuthUser {
   sub: string;

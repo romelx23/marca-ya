@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type { Role } from './employee.store.js';
 
-export type Role = 'employee' | 'manager' | 'hr' | 'admin';
+export type { Role } from './employee.store.js';
 
 @Entity('employees')
 export class Employee {

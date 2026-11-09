@@ -1,8 +1,9 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import type { DevicePlatform } from './device.store.js';
 
-export type DevicePlatform = 'android' | 'ios' | 'web';
+export type { DevicePlatform } from './device.store.js';
 
-/** Token de FCM de un dispositivo de un empleado. Un empleado puede tener varios dispositivos. */
+/** Token de FCM de un dispositivo de un empleado. Solo lo usa el adaptador typeorm-device.store.ts. */
 @Entity('device_tokens')
 export class DeviceToken {
   @PrimaryGeneratedColumn('uuid')
