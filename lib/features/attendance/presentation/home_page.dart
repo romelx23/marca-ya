@@ -11,9 +11,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/profile_page.dart';
 import '../application/attendance_controller.dart';
+import '../application/month_summary_provider.dart';
 import '../data/attendance_repository.dart';
 import 'format.dart';
 import 'history_page.dart';
+import 'swipe_to_punch.dart';
 
 const _workday = Duration(hours: 8);
 String _clock(int seconds) {
@@ -170,6 +172,7 @@ class _HomePageState extends ConsumerState<HomePage>
     if (!mounted) return;
     setState(() => _busy = false);
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    if (error == null) ref.invalidate(monthSummaryProvider);
     if (error != null) {
       messenger.showSnackBar(SnackBar(content: Text(error)));
     } else {
@@ -283,6 +286,8 @@ class _HomePageState extends ConsumerState<HomePage>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _StatusChip(day: day),
+        const SizedBox(height: 16),
         Semantics(
           button: true,
           enabled: !_busy,
@@ -388,6 +393,10 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
           ),
         ).animate().scale(duration: Motion.slow, curve: Curves.elasticOut),
+        if (day.checkedIn) ...[
+          const SizedBox(height: 24),
+          SwipeToPunchOut(onComplete: _mark),
+        ],
         const SizedBox(height: 28),
         Text(
           'HORAS TRABAJADAS HOY',
@@ -425,6 +434,125 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        const _MonthSummaryCard(),
+      ],
+    );
+  }
+}
+
+/// Estado de la jornada, encima del botón: en turno desde cuándo, o si aún no marca.
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.day});
+  final AttendanceDay day;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final firstIn = day.firstIn;
+    final String label;
+    final Color color;
+    if (day.checkedIn) {
+      label = firstIn == null ? 'En turno' : 'En turno desde ${hm(firstIn)}';
+      color = Theme.of(context).colorScheme.secondary;
+    } else if (firstIn != null) {
+      label = 'Jornada terminada';
+      color = p.textMuted;
+    } else {
+      label = 'Aún no has marcado hoy';
+      color = p.textMuted;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: color.withValues(alpha: .12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Horas y días del mes en curso, debajo de las tarjetas del día.
+class _MonthSummaryCard extends ConsumerWidget {
+  const _MonthSummaryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
+    // Mientras carga, o si falla, muestra guiones en lugar de datos viejos.
+    final summary = ref.watch(monthSummaryProvider).valueOrNull;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [p.cardTop, p.cardBottom],
+        ),
+        border: Border.all(color: p.border),
+        boxShadow: p.cardShadow,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _MonthStat(
+              label: 'Horas este mes',
+              value: summary == null
+                  ? '—'
+                  : duration(summary.workedSecondsAt(DateTime.now())),
+            ),
+          ),
+          Container(width: 1, height: 36, color: p.border),
+          Expanded(
+            child: _MonthStat(
+              label: 'Días con entrada',
+              value: summary == null ? '—' : '${summary.daysWorked}',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthStat extends StatelessWidget {
+  const _MonthStat({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: context.palette.textMuted),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
         ),
       ],
     );

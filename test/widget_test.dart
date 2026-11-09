@@ -6,6 +6,7 @@ import 'package:marca_ya/features/attendance/application/attendance_controller.d
 import 'package:marca_ya/features/attendance/data/attendance_repository.dart';
 import 'package:marca_ya/features/attendance/data/location_service.dart';
 import 'package:marca_ya/features/attendance/presentation/format.dart';
+import 'package:marca_ya/features/attendance/presentation/swipe_to_punch.dart';
 import 'package:marca_ya/features/auth/application/auth_controller.dart';
 import 'package:marca_ya/features/auth/data/auth_repository.dart';
 import 'package:marca_ya/main.dart';
@@ -41,6 +42,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
   int worked = 0;
   Object? loadError;
   ApiException? markError;
+  DateTime? firstIn;
 
   @override
   Future<AttendanceDay> today() async {
@@ -49,6 +51,7 @@ class FakeAttendanceRepository implements AttendanceRepository {
       checkedIn: checkedIn,
       workedSeconds: worked,
       fetchedAt: DateTime.now(),
+      firstIn: firstIn,
     );
   }
 
@@ -371,7 +374,8 @@ void main() {
 
     expect(find.text(dayLabel(hoy)), findsOneWidget);
     expect(find.text('Entrada 08:02  ·  Salida 17:30'), findsOneWidget);
-    expect(find.text('8h 28m'), findsOneWidget);
+    // Aparece en el resumen del mes y en el detalle del día.
+    expect(find.text('8h 28m'), findsWidgets);
   });
 
   testWidgets('el historial sin marcaciones lo dice', (tester) async {
@@ -382,7 +386,7 @@ void main() {
     await tester.tap(find.text('Mi historial'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sin marcaciones en los últimos 30 días'), findsOneWidget);
+    expect(find.text('Sin marcaciones este día'), findsOneWidget);
   });
 
   testWidgets('el perfil muestra los datos del empleado', (tester) async {
@@ -397,6 +401,63 @@ void main() {
     expect(find.text('ana@test.local'), findsOneWidget);
     expect(find.text('Sin documento registrado'), findsOneWidget);
     expect(find.text('Empleado'), findsWidgets);
+  });
+
+  testWidgets('el estado arriba del botón indica desde cuándo está en turno', (
+    tester,
+  ) async {
+    final hoy = DateTime.now();
+    final server = FakeAttendanceRepository()
+      ..checkedIn = true
+      ..worked = 60
+      ..firstIn = DateTime(hoy.year, hoy.month, hoy.day, 8, 2);
+    await pumpApp(tester, await loggedIn(), server);
+    await pumpFor(tester);
+
+    expect(find.text('En turno desde 08:02'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('el inicio muestra las horas y los días del mes', (tester) async {
+    final hoy = DateTime.now();
+    final server = FakeAttendanceRepository()
+      ..records = [
+        AttendanceRecord(
+          type: 'in',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 8, 0),
+        ),
+        AttendanceRecord(
+          type: 'out',
+          occurredAt: DateTime(hoy.year, hoy.month, hoy.day, 10, 0),
+        ),
+      ];
+    await pumpApp(tester, await loggedIn(), server);
+    await pumpFor(tester);
+
+    expect(find.text('Horas este mes'), findsOneWidget);
+    expect(find.text('2h 00m'), findsOneWidget);
+    expect(find.text('Días con entrada'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('deslizar para marcar la salida pide confirmación', (
+    tester,
+  ) async {
+    final server = FakeAttendanceRepository()
+      ..checkedIn = true
+      ..worked = 60;
+    await pumpApp(tester, await loggedIn(), server);
+    await pumpFor(tester);
+
+    await tester.drag(find.byType(SwipeToPunchOut), const Offset(500, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('¿Marcar tu salida?'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('confirm-cancel')));
+    await pumpFor(tester);
+    expect(server.checkedIn, isTrue);
+    await unmount(tester);
   });
 
   testWidgets('el botón de marcar se anuncia como botón con su acción', (

@@ -17,6 +17,16 @@ class WorkDay {
   /// Hay una entrada sin salida: la jornada sigue abierta.
   bool get open => records.isNotEmpty && records.last.type == 'in';
 
+  /// Igual que [workedSeconds], pero una entrada abierta cuenta hasta [now].
+  int workedSecondsAt(DateTime now) {
+    var total = workedSeconds;
+    if (open) {
+      final extra = now.difference(records.last.occurredAt).inSeconds;
+      if (extra > 0) total += extra;
+    }
+    return total;
+  }
+
   /// Suma cada par entrada → salida. Una entrada sin salida no suma.
   int get workedSeconds {
     var total = 0;
@@ -48,4 +58,29 @@ List<WorkDay> groupByDay(List<AttendanceRecord> records) {
       ),
   ]..sort((a, b) => b.day.compareTo(a.day));
   return days;
+}
+
+/// Totales de un mes: horas trabajadas y días con al menos una entrada.
+class MonthSummary {
+  MonthSummary(this.days);
+
+  final List<WorkDay> days;
+
+  int get workedSeconds => days.fold(0, (s, d) => s + d.workedSeconds);
+
+  int workedSecondsAt(DateTime now) =>
+      days.fold(0, (s, d) => s + d.workedSecondsAt(now));
+
+  int get daysWorked => days.where((d) => d.firstIn != null).length;
+}
+
+/// Celdas de un mes en cuadrícula de 7 columnas, lunes primero.
+/// Las celdas nulas son huecos antes del día 1.
+List<DateTime?> monthCells(DateTime month) {
+  final count = DateTime(month.year, month.month + 1, 0).day;
+  final lead = DateTime(month.year, month.month, 1).weekday - 1;
+  return [
+    for (var i = 0; i < lead; i++) null,
+    for (var d = 1; d <= count; d++) DateTime(month.year, month.month, d),
+  ];
 }

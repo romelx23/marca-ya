@@ -48,4 +48,33 @@ void main() {
     expect(dias.single.records.first.type, 'in');
     expect(dias.single.workedSeconds, 4 * 3600);
   });
+
+  test('el resumen del mes suma horas y cuenta días con entrada', () {
+    final dias = groupByDay([
+      marca('in', 8, 0, day: 2),
+      marca('out', 12, 0, day: 2),
+      marca('in', 8, 0, day: 3),
+      marca('out', 10, 0, day: 3),
+    ]);
+    final resumen = MonthSummary(dias);
+
+    expect(resumen.workedSeconds, (4 + 2) * 3600);
+    expect(resumen.daysWorked, 2);
+  });
+
+  test('la cuadrícula del mes empieza en lunes con huecos previos', () {
+    // 1 de noviembre de 2026 es domingo: seis huecos antes del día 1.
+    final celdas = monthCells(DateTime(2026, 11));
+
+    expect(celdas.take(6), everyElement(isNull));
+    expect(celdas[6], DateTime(2026, 11, 1));
+    expect(celdas.whereType<DateTime>(), hasLength(30));
+  });
+
+  test('una jornada abierta cuenta hasta la hora indicada', () {
+    final dia = WorkDay(DateTime(2026, 11, 9), [marca('in', 8, 0)]);
+
+    expect(dia.workedSecondsAt(DateTime(2026, 11, 9, 10, 0)), 2 * 3600);
+    expect(dia.workedSeconds, 0);
+  });
 }
