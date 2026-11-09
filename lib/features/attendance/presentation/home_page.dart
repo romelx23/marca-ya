@@ -513,23 +513,41 @@ class _MonthSummaryCard extends ConsumerWidget {
         border: Border.all(color: p.border),
         boxShadow: p.cardShadow,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: _MonthStat(
-              label: 'Horas este mes',
-              value: summary == null
-                  ? '—'
-                  : duration(summary.workedSecondsAt(DateTime.now())),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _MonthStat(
+                  label: 'Horas este mes',
+                  value: summary == null
+                      ? '—'
+                      : duration(summary.workedSecondsAt(DateTime.now())),
+                ),
+              ),
+              Container(width: 1, height: 36, color: p.border),
+              Expanded(
+                child: _MonthStat(
+                  label: 'Días con entrada',
+                  value: summary == null ? '—' : '${summary.daysWorked}',
+                ),
+              ),
+            ],
           ),
-          Container(width: 1, height: 36, color: p.border),
-          Expanded(
-            child: _MonthStat(
-              label: 'Días con entrada',
-              value: summary == null ? '—' : '${summary.daysWorked}',
+          if (summary != null &&
+              summary.daysWithoutExit(DateTime.now()) > 0) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${summary.daysWithoutExit(DateTime.now())} día(s) sin salida registrada',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFE0A100),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

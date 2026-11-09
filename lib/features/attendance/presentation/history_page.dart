@@ -375,6 +375,11 @@ class _DayTile extends StatelessWidget {
     final p = context.palette;
     final firstIn = day.firstIn;
     final lastOut = day.lastOut;
+    final now = DateTime.now();
+    final esHoy =
+        day.day.year == now.year &&
+        day.day.month == now.month &&
+        day.day.day == now.day;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -410,10 +415,13 @@ class _DayTile extends StatelessWidget {
               ),
               if (day.open)
                 Text(
-                  'En turno',
+                  esHoy ? 'En turno' : 'Falta la salida',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.w700,
+                    color: esHoy
+                        ? Theme.of(context).colorScheme.secondary
+                        : const Color(0xFFE0A100),
                   ),
                 ),
             ],

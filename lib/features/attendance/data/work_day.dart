@@ -17,10 +17,13 @@ class WorkDay {
   /// Hay una entrada sin salida: la jornada sigue abierta.
   bool get open => records.isNotEmpty && records.last.type == 'in';
 
-  /// Igual que [workedSeconds], pero una entrada abierta cuenta hasta [now].
+  /// Igual que [workedSeconds], pero una entrada abierta de HOY cuenta hasta [now].
+  /// Una entrada sin salida de un día pasado no suma: no sabemos cuándo terminó.
   int workedSecondsAt(DateTime now) {
     var total = workedSeconds;
-    if (open) {
+    final esHoy =
+        day.year == now.year && day.month == now.month && day.day == now.day;
+    if (open && esHoy) {
       final extra = now.difference(records.last.occurredAt).inSeconds;
       if (extra > 0) total += extra;
     }
@@ -72,6 +75,17 @@ class MonthSummary {
       days.fold(0, (s, d) => s + d.workedSecondsAt(now));
 
   int get daysWorked => days.where((d) => d.firstIn != null).length;
+
+  /// Días pasados con entrada y sin salida: hay que revisarlos con RRHH.
+  int daysWithoutExit(DateTime now) => days
+      .where(
+        (d) =>
+            d.open &&
+            !(d.day.year == now.year &&
+                d.day.month == now.month &&
+                d.day.day == now.day),
+      )
+      .length;
 }
 
 /// Celdas de un mes en cuadrícula de 7 columnas, lunes primero.

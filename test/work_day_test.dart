@@ -77,4 +77,31 @@ void main() {
     expect(dia.workedSecondsAt(DateTime(2026, 11, 9, 10, 0)), 2 * 3600);
     expect(dia.workedSeconds, 0);
   });
+
+  test('una entrada sin salida de un día pasado no cuenta hasta hoy', () {
+    final ayer = WorkDay(DateTime(2026, 11, 8), [marca('in', 8, 0, day: 8)]);
+    final hoy = DateTime(2026, 11, 9, 12, 0);
+
+    expect(ayer.workedSecondsAt(hoy), 0);
+    expect(ayer.open, isTrue);
+  });
+
+  test('una marcación de medianoche queda en su propio día', () {
+    final dias = groupByDay([
+      AttendanceRecord(type: 'in', occurredAt: DateTime(2026, 11, 9, 23, 50)),
+      AttendanceRecord(type: 'out', occurredAt: DateTime(2026, 11, 10, 0, 10)),
+    ]);
+
+    expect(dias.map((d) => d.day.day), [10, 9]);
+  });
+
+  test('cuenta los días pasados sin salida, no el día de hoy', () {
+    final dias = groupByDay([
+      marca('in', 8, 0, day: 8),
+      marca('in', 8, 0, day: 9),
+    ]);
+    final resumen = MonthSummary(dias);
+
+    expect(resumen.daysWithoutExit(DateTime(2026, 11, 9, 12)), 1);
+  });
 }
