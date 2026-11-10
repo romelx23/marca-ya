@@ -14,6 +14,9 @@ export class Employee {
   @Column({ type: 'varchar' })
   passwordHash!: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  pinHash!: string | null;
+
   @Column({ type: 'varchar' })
   fullName!: string;
 

@@ -43,7 +43,13 @@ abstract class AttendanceRepository {
   Future<AttendanceDay> today();
 
   /// [type] es 'in' o 'out'. Lanza [ApiException] (409 si la secuencia no corresponde).
-  Future<void> mark(String type, {Coords? coords});
+  /// [embedding] → método face; [pin] → método pin; sin ninguno → app (desde el teléfono).
+  Future<void> mark(
+    String type, {
+    Coords? coords,
+    List<double>? embedding,
+    String? pin,
+  });
 }
 
 class ApiAttendanceRepository implements AttendanceRepository {
@@ -59,11 +65,18 @@ class ApiAttendanceRepository implements AttendanceRepository {
   }
 
   @override
-  Future<void> mark(String type, {Coords? coords}) async {
+  Future<void> mark(
+    String type, {
+    Coords? coords,
+    List<double>? embedding,
+    String? pin,
+  }) async {
     await _api.post('/attendance', {
       'type': type,
       if (coords != null) 'latitude': coords.latitude,
       if (coords != null) 'longitude': coords.longitude,
+      'embedding': ?embedding,
+      'pin': ?pin,
     }, token: _token());
   }
 }

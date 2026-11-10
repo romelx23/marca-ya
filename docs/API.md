@@ -37,8 +37,18 @@ Un correo repetido responde `409`. El hash de la clave nunca se devuelve.
 El empleado marca su propia entrada o salida.
 
 ```json
-{ "type": "in", "latitude": -12.0464, "longitude": -77.0428 }
+{ "type": "in", "latitude": -12.0464, "longitude": -77.0428, "embedding": [128 números] }
 ```
+
+El método depende de lo que llega:
+
+| Campos | Método | Validación |
+|---|---|---|
+| solo `type` (y ubicación) | `app` | ninguna biométrica |
+| `embedding` | `face` | comparación coseno contra las plantillas del empleado; `403` si no coincide o si no tiene rostro registrado |
+| `pin` | `pin` | PIN de respaldo; `403` si es incorrecto |
+
+No se pueden enviar `embedding` y `pin` juntos (`400`). Con geocerca activa, las marcaciones `app`, `face` y `pin` exigen ubicación dentro del radio.
 
 - `type`: `in` o `out`.
 - `latitude` y `longitude`: opcionales, pero se envían juntas (si no, `400`).
@@ -77,6 +87,19 @@ Requieren la configuración de Firebase descrita en [FCM.md](FCM.md). Sin creden
 | `POST /notifications/send` | `hr`, `admin` | `{ "employeeId", "title", "body" }`: envía a todos los dispositivos de un empleado. Otros roles: `403` |
 
 Los tokens que FCM rechaza como inválidos se eliminan automáticamente tras el envío.
+
+## Reconocimiento facial (propio empleado)
+
+Solo el empleado gestiona su propio rostro. Nunca se reciben ni guardan imágenes: el teléfono envía embeddings.
+
+| Método y ruta | Descripción |
+|---|---|
+| `GET /face/status` | `{ currentConsentVersion, consented, consentVersion, templates, pinSet }` |
+| `POST /face/consent` | `{ "version": "2026-11-v1" }`. Debe ser la versión vigente (`409` si no). Requerido antes de inscribirse |
+| `POST /face/enroll` | `{ "embeddings": [[...128 números], ...], "pin": "1234" }`. Entre 3 y 5 embeddings; reemplaza los anteriores y define el PIN de respaldo (4–6 dígitos, guardado con hash). `403` sin consentimiento vigente |
+| `DELETE /face/enroll` | Revoca el consentimiento y borra las plantillas (cancelación). El PIN se conserva |
+
+Los embeddings se guardan cifrados con AES-256-GCM usando `FACE_ENCRYPTION_KEY` (32 bytes en base64). Sin esa variable, el enrolamiento responde `503`. La dimensión esperada es `FACE_EMBEDDING_DIM` (128 por defecto).
 
 ## Reglas
 

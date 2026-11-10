@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -22,6 +23,7 @@ describe('Auth + empleados (e2e)', () => {
   beforeAll(async () => {
     process.env.ADMIN_EMAIL = ADMIN.email;
     process.env.ADMIN_PASSWORD = ADMIN.password;
+    process.env.FACE_ENCRYPTION_KEY = randomBytes(32).toString('base64');
     const { AppModule } = await import('../src/app.module.js');
     const { PUSH_TRANSPORT } = await import('../src/notifications/push.transport.js');
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -193,6 +195,91 @@ describe('Auth + empleados (e2e)', () => {
     await http().delete(`/devices/${vivo}`).set('Authorization', noaAuth).expect(204);
     const none = await http().post('/notifications/test').set('Authorization', noaAuth).expect(201);
     expect(none.body).toEqual({ devices: 0, sent: 0, failed: 0 });
+  });
+
+  it('reconocimiento facial: consentimiento, 3-5 embeddings cifrados, PIN y revocación', async () => {
+    const http = () => request(app.getHttpServer());
+    const admin = await login(ADMIN.email, ADMIN.password).expect(200);
+    const adminAuth = `Bearer ${admin.body.accessToken}`;
+    await http()
+      .post('/employees')
+      .set('Authorization', adminAuth)
+      .send({ email: 'ivan@test.local', password: 'clave-ivan-123456', fullName: 'Ivan Paz' })
+      .expect(201);
+    const ivan = await login('ivan@test.local', 'clave-ivan-123456').expect(200);
+    const auth = `Bearer ${ivan.body.accessToken}`;
+    const vec = (seed: number) => Array.from({ length: 128 }, (_, i) => Math.sin(seed + i));
+
+    expect((await http().get('/face/status').set('Authorization', auth).expect(200)).body).toMatchObject({
+      consented: false,
+      templates: 0,
+      pinSet: false,
+    });
+    await http().post('/face/enroll').set('Authorization', auth).send({ embeddings: [vec(1), vec(2), vec(3)], pin: '1234' }).expect(403);
+    await http().post('/face/consent').set('Authorization', auth).send({ version: 'version-vieja' }).expect(409);
+    await http().post('/face/consent').set('Authorization', auth).send({ version: '2026-11-v1' }).expect(201);
+
+    await http().post('/face/enroll').set('Authorization', auth).send({ embeddings: [vec(1), vec(2)], pin: '1234' }).expect(400);
+    await http().post('/face/enroll').set('Authorization', auth).send({ embeddings: [vec(1), vec(2), vec(3)], pin: 'abc' }).expect(400);
+    const enrolled = await http()
+      .post('/face/enroll')
+      .set('Authorization', auth)
+      .send({ embeddings: [vec(1), vec(2), vec(3)], pin: '1234' })
+      .expect(201);
+    expect(enrolled.body).toMatchObject({ consented: true, templates: 3, pinSet: true });
+
+    // El PIN y su hash nunca salen por la API de empleados.
+    const list = await http().get('/employees').set('Authorization', adminAuth).expect(200);
+    const row = list.body.find((e: { email: string }) => e.email === 'ivan@test.local');
+    expect(row.pinHash).toBeUndefined();
+
+    const revoked = await http().delete('/face/enroll').set('Authorization', auth).expect(200);
+    expect(revoked.body).toMatchObject({ consented: false, templates: 0, pinSet: true });
+  });
+
+  it('marcaje con rostro y PIN: acepta el rostro inscrito, rechaza otro y valida el PIN', async () => {
+    const http = () => request(app.getHttpServer());
+    const admin = await login(ADMIN.email, ADMIN.password).expect(200);
+    const adminAuth = `Bearer ${admin.body.accessToken}`;
+    await http()
+      .post('/employees')
+      .set('Authorization', adminAuth)
+      .send({ email: 'marta.f@test.local', password: 'clave-marta-123456', fullName: 'Marta F' })
+      .expect(201);
+    const marta = await login('marta.f@test.local', 'clave-marta-123456').expect(200);
+    const auth = `Bearer ${marta.body.accessToken}`;
+    const rnd = () => Array.from({ length: 128 }, () => Math.random() - 0.5);
+    const rostro = rnd();
+
+    await http().post('/face/consent').set('Authorization', auth).send({ version: '2026-11-v1' }).expect(201);
+    await http()
+      .post('/face/enroll')
+      .set('Authorization', auth)
+      .send({ embeddings: [rostro, rnd(), rnd()], pin: '2468' })
+      .expect(201);
+
+    // Rostro inscrito → entrada aceptada con método face.
+    const entrada = await http().post('/attendance').set('Authorization', auth).send({ type: 'in', embedding: rostro }).expect(201);
+    expect(entrada.body.method).toBe('face');
+
+    // Otra persona → rechazada; no se registra nada.
+    await http().post('/attendance').set('Authorization', auth).send({ type: 'out', embedding: rnd() }).expect(403);
+
+    // PIN incorrecto → rechazado; PIN correcto → salida con método pin.
+    await http().post('/attendance').set('Authorization', auth).send({ type: 'out', pin: '0000' }).expect(403);
+    const salida = await http().post('/attendance').set('Authorization', auth).send({ type: 'out', pin: '2468' }).expect(201);
+    expect(salida.body.method).toBe('pin');
+
+    // Validaciones: no se aceptan rostro y PIN juntos, ni un embedding de dimensión incorrecta.
+    await http()
+      .post('/attendance')
+      .set('Authorization', auth)
+      .send({ type: 'in', embedding: rostro, pin: '2468' })
+      .expect(400);
+    await http().post('/attendance').set('Authorization', auth).send({ type: 'in', embedding: [1, 2, 3] }).expect(400);
+
+    const hoy = await http().get('/attendance/me').set('Authorization', auth).expect(200);
+    expect(hoy.body.map((e: { method: string }) => e.method)).toEqual(['face', 'pin']);
   });
 
   it('dos marcaciones simultáneas del mismo empleado no se duplican', async () => {

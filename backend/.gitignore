@@ -5,3 +5,7 @@ dist/
 !.env.example
 *.log
 coverage/
+
+# Bases locales de prueba (libSQL)
+*.db
+*.db-*

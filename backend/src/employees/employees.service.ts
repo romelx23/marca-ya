@@ -3,10 +3,11 @@ import bcrypt from 'bcryptjs';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './employee.dto.js';
 import { EMPLOYEE_STORE, type EmployeeRecord, type EmployeeStore } from './employee.store.js';
 
-export type PublicEmployee = Omit<EmployeeRecord, 'passwordHash'>;
+export type PublicEmployee = Omit<EmployeeRecord, 'passwordHash' | 'pinHash'>;
 
+/** Nunca expone los hashes de clave ni de PIN. */
 export function toPublic(e: EmployeeRecord): PublicEmployee {
-  const { passwordHash: _omit, ...rest } = e;
+  const { passwordHash: _omit, pinHash: _omitPin, ...rest } = e;
   return rest;
 }
 
@@ -47,9 +48,17 @@ export class EmployeesService {
     const e = await this.store.findById(id);
     if (!e) throw new NotFoundException('Empleado no encontrado');
     const { password, ...fields } = dto;
-    Object.assign(e, fields);
+    // El DTO trae como `undefined` los campos no enviados: solo se copian los que llegaron.
+    Object.assign(e, Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)));
     if (password) e.passwordHash = await bcrypt.hash(password, 10);
     return toPublic(await this.store.save(e));
+  }
+
+  /** Comprueba el PIN de respaldo. Falso si el empleado no tiene PIN definido. */
+  async verifyPin(id: string, pin: string): Promise<boolean> {
+    const e = await this.store.findById(id);
+    if (!e || !e.pinHash) return false;
+    return bcrypt.compare(pin, e.pinHash);
   }
 
   async count(): Promise<number> {

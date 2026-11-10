@@ -1,3 +1,4 @@
+import './load-env.js'; // debe ir primero: carga .env antes de importar los módulos
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';

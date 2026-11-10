@@ -43,6 +43,11 @@ dependencies:
   geolocator: ^14.1.2
   firebase_core: ^5.1.0
   firebase_messaging: ^17.0.1
+  camera: ^0.12.0+2
+  google_mlkit_face_detection: ^0.14.0
+  tflite_flutter: ^0.12.1
+  image: ^4.12.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +70,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Modelo de embeddings faciales (MobileFaceNet, Qualcomm AI Hub, Apache-2.0).
+  assets:
+    - assets/models/mobilefacenet.tflite
 
   # To add assets to your application, add an assets section, like this:
   # assets:

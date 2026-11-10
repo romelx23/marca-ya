@@ -9,6 +9,10 @@ import '../../../core/api/api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../notifications/application/push_registrar.dart';
+import '../../face/application/face_providers.dart';
+import '../../face/data/face_api.dart';
+import '../../face/presentation/face_capture_page.dart';
+import '../../face/presentation/face_enroll_page.dart';
 import '../../notifications/data/push_service.dart';
 import '../application/attendance_controller.dart';
 import '../data/attendance_repository.dart';
@@ -233,9 +237,66 @@ class _HomePageState extends ConsumerState<HomePage>
       confirmLabel: out ? 'Marcar salida' : 'Marcar entrada',
     );
     if (!ok || !mounted) return;
+    // Si el empleado tiene rostro registrado, se captura y se marca con su embedding.
+    final status = await _faceStatus();
+    if (!mounted) return;
+    List<double>? embedding;
+    if (status != null && status.consented && status.templates > 0) {
+      embedding = await Navigator.of(context).push<List<double>>(
+        MaterialPageRoute(builder: (_) => const FaceCapturePage()),
+      );
+      if (embedding == null || !mounted) return;
+    }
+    await _runMark(embedding: embedding);
+  }
+
+  Future<FaceStatus?> _faceStatus() async {
+    try {
+      return await ref.read(faceApiProvider).status();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _markWithPin() async {
+    if (_busy) return;
+    final pin = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Marcar con PIN'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            maxLength: 6,
+            decoration: const InputDecoration(labelText: 'PIN'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Marcar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (pin == null || pin.isEmpty || !mounted) return;
+    await _runMark(pin: pin);
+  }
+
+  Future<void> _runMark({List<double>? embedding, String? pin}) async {
     setState(() => _busy = true);
     final sweep = _ring.forward(from: 0);
-    final error = await ref.read(attendanceControllerProvider.notifier).mark();
+    final error = await ref
+        .read(attendanceControllerProvider.notifier)
+        .mark(embedding: embedding, pin: pin);
     await sweep;
     if (!mounted) return;
     setState(() => _busy = false);
@@ -287,6 +348,18 @@ class _HomePageState extends ConsumerState<HomePage>
                                 style: const TextStyle(
                                   fontSize: 30,
                                   fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Mi rostro',
+                              icon: Icon(
+                                Icons.face_retouching_natural,
+                                color: p.textMuted,
+                              ),
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const FaceEnrollPage(),
                                 ),
                               ),
                             ),
@@ -471,7 +544,13 @@ class _HomePageState extends ConsumerState<HomePage>
               : 'Jornada completa',
           style: TextStyle(color: p.textMuted),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
+        TextButton(
+          key: const Key('mark-with-pin'),
+          onPressed: _busy ? null : _markWithPin,
+          child: const Text('Marcar con PIN'),
+        ),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(

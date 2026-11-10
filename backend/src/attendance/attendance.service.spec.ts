@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { EmployeesService } from '../employees/employees.service.js';
+import type { FaceMatchService } from '../face/face-match.service.js';
 import { AttendanceService } from './attendance.service.js';
 import type { AttendanceRecord, AttendanceStore, NewAttendance } from './attendance.store.js';
 
@@ -22,11 +23,12 @@ class MemoryAttendanceStore implements AttendanceStore {
 }
 
 const noEmployees = { findAll: async () => [] } as unknown as EmployeesService;
+const noFace = {} as unknown as FaceMatchService;
 const at = (iso: string) => new Date(iso);
 
 describe('AttendanceService con un almacén en memoria', () => {
   it('alterna entrada y salida, rechaza duplicadas y calcula las horas', async () => {
-    const service = new AttendanceService(new MemoryAttendanceStore(), noEmployees);
+    const service = new AttendanceService(new MemoryAttendanceStore(), noEmployees, noFace);
     const emp = 'emp-1';
 
     // 10:00 y 12:30 en Lima (UTC-5).
@@ -43,7 +45,7 @@ describe('AttendanceService con un almacén en memoria', () => {
   });
 
   it('una entrada abierta cuenta hasta el momento de la consulta', async () => {
-    const service = new AttendanceService(new MemoryAttendanceStore(), noEmployees);
+    const service = new AttendanceService(new MemoryAttendanceStore(), noEmployees, noFace);
     await service.mark('emp-2', { type: 'in' }, { now: at('2026-11-05T15:00:00Z') });
     const day = await service.today('emp-2', at('2026-11-05T16:00:00Z'));
     expect(day.checkedIn).toBe(true);
@@ -52,7 +54,7 @@ describe('AttendanceService con un almacén en memoria', () => {
 
   it('el rango filtra por empleado y por días locales', async () => {
     const store = new MemoryAttendanceStore();
-    const service = new AttendanceService(store, noEmployees);
+    const service = new AttendanceService(store, noEmployees, noFace);
     await service.mark('a', { type: 'in' }, { now: at('2026-11-05T15:00:00Z') });
     await service.mark('b', { type: 'in' }, { now: at('2026-11-05T15:00:00Z') });
     await service.mark('a', { type: 'out' }, { now: at('2026-11-05T16:00:00Z') });

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:marca_ya/core/api/api_client.dart';
 import 'package:marca_ya/features/attendance/application/attendance_controller.dart';
 import 'package:marca_ya/features/attendance/data/attendance_repository.dart';
 import 'package:marca_ya/features/attendance/data/location_service.dart';
 import 'package:marca_ya/features/auth/application/auth_controller.dart';
+import 'package:marca_ya/features/face/application/face_providers.dart';
+import 'package:marca_ya/features/face/data/face_api.dart';
+import 'package:marca_ya/core/api/api_client.dart';
 import 'package:marca_ya/features/notifications/application/push_registrar.dart';
 import 'package:marca_ya/features/notifications/data/push_service.dart';
 import 'package:marca_ya/features/auth/data/auth_repository.dart';
@@ -37,6 +39,19 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> logout() async => saved = null;
 }
 
+/// Sin rostro registrado: la app marca como antes, sin llamar al servidor.
+class FakeFaceApi extends FaceApi {
+  FakeFaceApi() : super(ApiClient(baseUrl: 'http://localhost:0'), () => null);
+
+  @override
+  Future<FaceStatus> status() async => const FaceStatus(
+    currentConsentVersion: '2026-11-v1',
+    consented: false,
+    templates: 0,
+    pinSet: false,
+  );
+}
+
 class FakeAttendanceRepository implements AttendanceRepository {
   bool checkedIn = false;
   int worked = 0;
@@ -55,9 +70,19 @@ class FakeAttendanceRepository implements AttendanceRepository {
 
   Coords? lastCoords;
 
+  String? lastPin;
+  List<double>? lastEmbedding;
+
   @override
-  Future<void> mark(String type, {Coords? coords}) async {
+  Future<void> mark(
+    String type, {
+    Coords? coords,
+    List<double>? embedding,
+    String? pin,
+  }) async {
     lastCoords = coords;
+    lastPin = pin;
+    lastEmbedding = embedding;
     if (markError != null) throw markError!;
     checkedIn = type == 'in';
   }
@@ -81,6 +106,7 @@ Future<void> pumpApp(
     ProviderScope(
       overrides: [
         pushServiceProvider.overrideWithValue(NoPushService()),
+        faceApiProvider.overrideWithValue(FakeFaceApi()),
         locationServiceProvider.overrideWithValue(
           location ?? FakeLocationService(),
         ),
@@ -261,6 +287,22 @@ void main() {
     expect(server.checkedIn, isFalse);
     expect(server.lastCoords, isNull);
     expect(find.text('Marcar entrada'), findsOneWidget);
+  });
+
+  testWidgets('marcar con PIN envía el PIN y no un rostro', (tester) async {
+    final server = FakeAttendanceRepository();
+    await pumpApp(tester, await loggedIn(), server);
+
+    await tester.tap(find.byKey(const Key('mark-with-pin')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '1234');
+    await tester.tap(find.text('Marcar'));
+    await pumpFor(tester);
+
+    expect(server.lastPin, '1234');
+    expect(server.lastEmbedding, isNull);
+    expect(server.checkedIn, isTrue);
+    await unmount(tester);
   });
 
   testWidgets('un 409 muestra el mensaje y se sincroniza con el servidor', (

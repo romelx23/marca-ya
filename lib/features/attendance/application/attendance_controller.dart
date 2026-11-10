@@ -46,13 +46,18 @@ class AttendanceController extends AsyncNotifier<AttendanceDay> {
   }
 
   /// Marca la acción que toca según el servidor. Devuelve el error, o null si salió bien.
-  Future<String?> mark() async {
+  Future<String?> mark({List<double>? embedding, String? pin}) async {
     final current = state.valueOrNull;
     if (current == null) return null;
     final repo = ref.read(attendanceRepositoryProvider);
     try {
       final coords = await ref.read(locationServiceProvider).current();
-      await repo.mark(current.checkedIn ? 'out' : 'in', coords: coords);
+      await repo.mark(
+        current.checkedIn ? 'out' : 'in',
+        coords: coords,
+        embedding: embedding,
+        pin: pin,
+      );
       state = AsyncData(await repo.today());
       return null;
     } on ApiException catch (e) {

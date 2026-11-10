@@ -6,6 +6,8 @@ export interface EmployeeRecord {
   id: string;
   email: string;
   passwordHash: string;
+  /** PIN de respaldo para marcar sin rostro (hash). Null si el empleado aún no lo definió. */
+  pinHash: string | null;
   fullName: string;
   documentId: string | null;
   role: Role;
